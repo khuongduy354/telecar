@@ -1,0 +1,23 @@
+services:
+  gmail-listener:
+    image: node:20-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install && node src/index.js"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    networks:
+      - n8n_default
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.gmail.rule=Host(`vbdh-sgr.com`) && PathPrefix(`/webhook/gmail`)
+      - traefik.http.routers.gmail.tls=true
+      - traefik.http.routers.gmail.entrypoints=websecure
+      - traefik.http.routers.gmail.tls.certresolver=mytlschallenge
+      - traefik.http.services.gmail.loadbalancer.server.port=3021
+
+networks:
+  n8n_default:
+    external: true

@@ -12,9 +12,11 @@ export function createWebhookServer(bot, onTriggerMessage) {
   const app = express();
   app.use(express.json());
 
+  const router = express.Router();
+
   // --- Telegram bot webhook ---
   const botPath = `/bot${bot.secretPathComponent()}`;
-  app.post(botPath, async (req, res) => {
+  router.post(botPath, async (req, res) => {
     console.log("[bot webhook] received update");
     try {
       await bot.handleUpdate(req.body, res);
@@ -25,7 +27,7 @@ export function createWebhookServer(bot, onTriggerMessage) {
   });
 
   // --- Composio trigger webhook ---
-  app.post("/webhook", (req, res) => {
+  router.post("/webhook", (req, res) => {
     const payload = req.body;
     const eventType = payload.type;
 
@@ -42,12 +44,12 @@ export function createWebhookServer(bot, onTriggerMessage) {
     res.json({ status: "ok" });
   });
 
-  app.get("/health", (_req, res) => res.json({ status: "ok" }));
+  router.get("/health", (_req, res) => res.json({ status: "ok" }));
 
   // --- Self-test route ---
-  // POST /test/trigger?user_id=<telegram_id>&subject=Hello&from=test@example.com
+  // POST /webhook/gmail/test/trigger?user_id=<telegram_id>&subject=Hello&from=test@example.com
   // Fires a fake GMAIL_NEW_GMAIL_MESSAGE payload to the local webhook handler.
-  app.post("/test/trigger", async (req, res) => {
+  router.post("/test/trigger", async (req, res) => {
     const PORT = process.env.PORT || 3000;
 
     const userId = req.query.user_id || req.body.user_id || "0";
@@ -76,13 +78,19 @@ export function createWebhookServer(bot, onTriggerMessage) {
     };
 
     try {
-      const response = await fetch(`http://localhost:${PORT}/webhook`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fakePayload),
-      });
+      const response = await fetch(
+        `http://localhost:${PORT}/webhook/gmail/webhook`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fakePayload),
+        },
+      );
       const result = await response.json();
-      console.log("[test/trigger] self-posted to /webhook, response:", result);
+      console.log(
+        "[test/trigger] self-posted to /webhook/gmail/webhook, response:",
+        result,
+      );
       res.json({
         status: "ok",
         sentPayload: fakePayload,
@@ -93,6 +101,8 @@ export function createWebhookServer(bot, onTriggerMessage) {
       res.status(500).json({ status: "error", message: err.message });
     }
   });
+
+  app.use("/webhook/gmail", router);
 
   return app;
 }
