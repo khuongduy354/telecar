@@ -44,13 +44,6 @@ Gmail (new email) -> Composio (webhook trigger) -> Webhook POST -> Destination (
 - If you want custom OAuth (your own Google Cloud credentials), see https://docs.composio.dev/docs/using-custom-auth-configuration
 
 ### 4. Webhook URL
-The bot runs an Express server to receive Composio trigger events. You need a public URL.
-
-**Local dev (ngrok):**
-```bash
-ngrok http 3000
-# copy the https URL
-```
 
 **Production:**
 Use your server's public URL.
@@ -60,8 +53,7 @@ Set it in `.env`:
 COMPOSIO_WEBHOOK_URL=https://your-domain.com/webhook
 ```
 
-Then run `/setup_webhook` in Telegram (once) to register it with Composio.
-You only need to re-run this if the URL changes.
+
 
 ### 5. Install and Run
 
@@ -92,8 +84,6 @@ npm run dev
 | `TELEGRAM_BOT_TOKEN` | Yes | From @BotFather |
 | `COMPOSIO_API_KEY` | Yes | From Composio dashboard |
 | `COMPOSIO_WEBHOOK_URL` | Yes | Public URL for receiving trigger events (e.g. `https://your-domain.com/webhook`) |
-| `ADMIN_TELEGRAM_ID` | No | Telegram user ID allowed to run `/setup_webhook`. If unset, anyone can run it |
-| `PORT` | No | Express server port (default: 3000) |
 
 ## How Composio Auth Works
 - Each Telegram user ID is used as the Composio `user_id` (external user ID)
@@ -109,23 +99,6 @@ npm run dev
 - The webhook payload (V3) contains `metadata.user_id` which maps back to the Telegram user ID
 - The bot then sends a formatted message to that Telegram user
 
-## Webhook Setup (One-time)
-The webhook subscription is **project-level** — one URL receives events for all users. It only needs to be registered once:
-
-1. Set `COMPOSIO_WEBHOOK_URL` in `.env`
-2. Start the bot
-3. Send `/setup_webhook` in Telegram (as admin)
-
-Do not re-run unless the URL changes. Re-registering creates duplicate subscriptions in Composio.
-
-## Testing Locally
-Use the self-test endpoint to simulate a trigger without waiting for a real email:
-
-```bash
-curl -X POST 'http://localhost:3000/test/trigger?user_id=YOUR_TELEGRAM_ID&subject=Hello&from=test@example.com&snippet=Test+body'
-```
-
-This fires a fake `GMAIL_NEW_GMAIL_MESSAGE` payload at the local webhook handler, which forwards it to the Telegram user.
 
 ## Project Structure
 
