@@ -69,3 +69,15 @@ export async function checkGmailAuthStatus(telegramUserId) {
     accounts: active,
   };
 }
+
+/**
+ * Disconnect all Gmail connected accounts for a user.
+ */
+export async function disconnectGmailAccount(telegramUserId) {
+  const composio = getComposio();
+  const accounts = await getGmailConnections(telegramUserId);
+  await Promise.all(
+    accounts.map((a) => composio.connectedAccounts.delete(a.id)),
+  );
+  return accounts.length;
+}

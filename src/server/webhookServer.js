@@ -1,16 +1,30 @@
 import express from "express";
 
 /**
- * Start an Express server that receives Composio webhook events.
- * The webhook handler is passed in so main can wire it up to the bot.
+ * Start an Express server that receives Composio webhook events
+ * and serves as the Telegram bot webhook endpoint.
  *
- * @param {Function} onTriggerMessage - callback(payload) when a trigger fires
+ * @param {import('telegraf').Telegraf} bot - Telegraf bot instance
+ * @param {Function} onTriggerMessage - callback(payload) when a Composio trigger fires
  * @returns {express.Application}
  */
-export function createWebhookServer(onTriggerMessage) {
+export function createWebhookServer(bot, onTriggerMessage) {
   const app = express();
   app.use(express.json());
 
+  // --- Telegram bot webhook ---
+  const botPath = `/bot${bot.secretPathComponent()}`;
+  app.post(botPath, async (req, res) => {
+    console.log("[bot webhook] received update");
+    try {
+      await bot.handleUpdate(req.body, res);
+    } catch (err) {
+      console.error("[bot webhook] error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Composio trigger webhook ---
   app.post("/webhook", (req, res) => {
     const payload = req.body;
     const eventType = payload.type;

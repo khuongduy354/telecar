@@ -1,9 +1,29 @@
 import {
   createGmailConnectionLink,
   checkGmailAuthStatus,
+  disconnectGmailAccount,
 } from "../composio/auth.js";
-import { registerWebhookSubscription } from "../composio/webhook.js";
-import { enableGmailTrigger, listUserTriggers } from "../composio/triggers.js";
+import {
+  enableGmailTrigger,
+  listUserTriggers,
+  disableAllUserTriggers,
+} from "../composio/triggers.js";
+
+/**
+ * Extract a short, user-friendly message from an error.
+ * Avoids leaking stack traces or raw API responses to chat.
+ */
+function userErrorMessage(err) {
+  if (err?.status === 401)
+    return "Service authentication failed. Please contact the admin.";
+  if (err?.status === 429) return "Too many requests. Please try again later.";
+  if (err?.status >= 500)
+    return "Service is temporarily unavailable. Please try again later.";
+  // Use first sentence of message if available, strip JSON blobs
+  const msg = err?.message || "An unexpected error occurred.";
+  const clean = msg.replace(/\{[\s\S]*\}/, "").trim();
+  return clean || "An unexpected error occurred.";
+}
 
 /**
  * /connect_gmail - Generate an OAuth link for the user to connect their Gmail
@@ -35,7 +55,9 @@ export async function handleConnectGmail(ctx) {
     );
   } catch (err) {
     console.error("connect_gmail error:", err);
-    await ctx.reply("Failed to create Gmail connection link: " + err.message);
+    await ctx.reply(
+      "Failed to create Gmail connection link. " + userErrorMessage(err),
+    );
   }
 }
 
@@ -55,6 +77,15 @@ export async function handleEnableTrigger(ctx) {
       return;
     }
 
+    // Enforce 1 trigger per user
+    const existing = await listUserTriggers(telegramUserId);
+    if (existing.length > 0) {
+      await ctx.reply(
+        "You already have an active trigger.\nUse /list_triggers to view it, or /clear_triggers to remove it first.",
+      );
+      return;
+    }
+
     const connectedAccountId = status.accounts[0].id;
 
     await ctx.reply("Enabling Gmail new-message trigger...");
@@ -69,7 +100,7 @@ export async function handleEnableTrigger(ctx) {
     );
   } catch (err) {
     console.error("enable_trigger error:", err);
-    await ctx.reply("Failed to enable trigger: " + err.message);
+    await ctx.reply("Failed to enable trigger. " + userErrorMessage(err));
   }
 }
 
@@ -95,47 +126,12 @@ export async function handleCheckAuth(ctx) {
     await ctx.reply("Gmail auth status: CONNECTED\n\n" + lines.join("\n"));
   } catch (err) {
     console.error("check_auth error:", err);
-    await ctx.reply("Failed to check auth status: " + err.message);
+    await ctx.reply("Failed to check auth status. " + userErrorMessage(err));
   }
 }
 
 /**
- * /setup_webhook - (Admin) Register the COMPOSIO_WEBHOOK_URL with Composio.
- * Run this once after deploying or changing your webhook URL.
- * Only allowed for ADMIN_TELEGRAM_ID if set in env.
- */
-export async function handleSetupWebhook(ctx) {
-  const adminId = process.env.ADMIN_TELEGRAM_ID;
-  if (adminId && String(ctx.from.id) !== String(adminId)) {
-    await ctx.reply("Not authorized.");
-    return;
-  }
-
-  const webhookUrl = process.env.COMPOSIO_WEBHOOK_URL;
-  if (!webhookUrl) {
-    await ctx.reply(
-      "COMPOSIO_WEBHOOK_URL is not set in .env. Set it and restart.",
-    );
-    return;
-  }
-
-  await ctx.reply(`Registering webhook URL with Composio:\n${webhookUrl}`);
-
-  try {
-    const sub = await registerWebhookSubscription();
-    await ctx.reply(
-      "Webhook registered.\nSubscription ID: " +
-        (sub.id ?? JSON.stringify(sub)) +
-        "\n\nThis is a one-time project-level setup. You do not need to run this again unless the URL changes.",
-    );
-  } catch (err) {
-    console.error("setup_webhook error:", err);
-    await ctx.reply("Failed to register webhook: " + err.message);
-  }
-}
-
-/**
- * /list_triggers - List active triggers for the user.
+ * /list_triggers - List active triggers for the current user.
  */
 export async function handleListTriggers(ctx) {
   const telegramUserId = ctx.from.id;
@@ -155,6 +151,51 @@ export async function handleListTriggers(ctx) {
     await ctx.reply("Active triggers:\n\n" + lines.join("\n"));
   } catch (err) {
     console.error("list_triggers error:", err);
-    await ctx.reply("Failed to list triggers: " + err.message);
+    await ctx.reply("Failed to list triggers. " + userErrorMessage(err));
+  }
+}
+
+/**
+ * /clear_triggers - Disable all active triggers for the current user.
+ */
+export async function handleClearTriggers(ctx) {
+  const telegramUserId = ctx.from.id;
+
+  try {
+    const count = await disableAllUserTriggers(telegramUserId);
+    if (count === 0) {
+      await ctx.reply("No active triggers to clear.");
+    } else {
+      await ctx.reply(
+        `Cleared ${count} trigger(s). You will no longer receive email notifications.`,
+      );
+    }
+  } catch (err) {
+    console.error("clear_triggers error:", err);
+    await ctx.reply("Failed to clear triggers. " + userErrorMessage(err));
+  }
+}
+
+/**
+ * /logout_email - Disconnect Gmail and clear all triggers for the current user.
+ */
+export async function handleLogoutEmail(ctx) {
+  const telegramUserId = ctx.from.id;
+
+  try {
+    // Clear triggers first
+    await disableAllUserTriggers(telegramUserId).catch(() => {});
+
+    const count = await disconnectGmailAccount(telegramUserId);
+    if (count === 0) {
+      await ctx.reply("No Gmail account connected.");
+    } else {
+      await ctx.reply(
+        "Gmail account disconnected and all triggers cleared.\nUse /connect_gmail to reconnect.",
+      );
+    }
+  } catch (err) {
+    console.error("logout_email error:", err);
+    await ctx.reply("Failed to logout. " + userErrorMessage(err));
   }
 }

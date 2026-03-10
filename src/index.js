@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 
 async function main() {
   // --- Validate env ---
-  const required = ["TELEGRAM_BOT_TOKEN", "COMPOSIO_API_KEY"];
+  const required = ["TELEGRAM_BOT_TOKEN", "COMPOSIO_API_KEY", "WEBHOOK_DOMAIN"];
   for (const key of required) {
     if (!process.env[key]) {
       console.error(`Missing required env var: ${key}`);
@@ -18,7 +18,7 @@ async function main() {
   const bot = createBot();
 
   // --- Webhook server ---
-  const app = createWebhookServer((payload) => {
+  const app = createWebhookServer(bot, (payload) => {
     // payload shape (V3):
     // { id, type, metadata: { trigger_slug, trigger_id, connected_account_id, user_id }, data, timestamp }
     const userId = payload.metadata?.user_id;
@@ -39,17 +39,19 @@ async function main() {
     }
   });
 
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`[server] webhook server listening on port ${PORT}`);
+
+    // Set Telegram bot webhook
+    const webhookDomain = process.env.WEBHOOK_DOMAIN.replace(/\/$/, "");
+    const botPath = `/bot${bot.secretPathComponent()}`;
+    await bot.telegram.setWebhook(`${webhookDomain}${botPath}`);
+    console.log(`[bot] Telegram bot webhook set at ${webhookDomain}${botPath}`);
   });
 
-  // --- Start bot ---
-  bot.launch();
-  console.log("[bot] Telegram bot started");
-
   // Graceful shutdown
-  const shutdown = () => {
-    bot.stop("SIGTERM");
+  const shutdown = async () => {
+    await bot.telegram.deleteWebhook();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

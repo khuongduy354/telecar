@@ -4,7 +4,8 @@ import {
   handleEnableTrigger,
   handleCheckAuth,
   handleListTriggers,
-  handleSetupWebhook,
+  handleClearTriggers,
+  handleLogoutEmail,
 } from "./commands.js";
 
 export function createBot() {
@@ -17,8 +18,9 @@ export function createBot() {
         "/connect_gmail - Connect your Gmail account\n" +
         "/enable_trigger - Enable new-email trigger\n" +
         "/check_auth - Check Gmail connection status\n" +
-        "/list_triggers - List active triggers\n" +
-        "/setup_webhook - (Admin) Register webhook URL with Composio\n" +
+        "/list_triggers - List your active triggers\n" +
+        "/clear_triggers - Remove all your triggers\n" +
+        "/logout_email - Disconnect Gmail and clear triggers\n" +
         "/help - Show this message",
     ),
   );
@@ -29,8 +31,9 @@ export function createBot() {
         "/connect_gmail - Connect your Gmail account via Composio OAuth\n" +
         "/enable_trigger - Enable the Gmail new-email trigger (after connecting)\n" +
         "/check_auth - Check if your Gmail is connected\n" +
-        "/list_triggers - List your active Composio triggers\n" +
-        "/setup_webhook - (Admin) One-time setup: register webhook URL with Composio",
+        "/list_triggers - List your active triggers\n" +
+        "/clear_triggers - Remove all your active triggers\n" +
+        "/logout_email - Disconnect Gmail and clear all triggers",
     ),
   );
 
@@ -38,7 +41,8 @@ export function createBot() {
   bot.command("enable_trigger", handleEnableTrigger);
   bot.command("check_auth", handleCheckAuth);
   bot.command("list_triggers", handleListTriggers);
-  bot.command("setup_webhook", handleSetupWebhook);
+  bot.command("clear_triggers", handleClearTriggers);
+  bot.command("logout_email", handleLogoutEmail);
 
   return bot;
 }
